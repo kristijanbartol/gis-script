@@ -4,18 +4,17 @@ import os
 import time
 from copy import deepcopy
 
-kml_head = '''<?xml version="1.0" encoding="UTF-8"?>\n
-              <kml xmlns="http://www.opengis.net/kml/2.2">\n
-              <Document id="root_doc">\n'''
-kml_tail = '''</Document>\n
-              </kml>'''
-kml_body_template = '''<Placemark>\n
-                            <name>Line{}</name>\n
-                            <description>{}</description>\n
-                            <LineString>\n
-                                <coordinates>{},{} {},{}</coordinates>
-                            </LineString>\n
-                            </Placemark>\n'''
+kml_head = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document id="root_doc">\n'''
+kml_tail = '''</Document>\n</kml>'''
+kml_body_template = '''\t<Placemark>
+    <name>Line{}</name>
+    <description>{}</description>
+    <LineString>
+        <coordinates>{},{} {},{}</coordinates>
+    </LineString>
+    </Placemark>\n'''
 
 polylines_template = '{}_polylines.kml'
 eps = 1e-4
@@ -118,7 +117,7 @@ if __name__ == '__main__':
     kml_string = kml_head + kml_body + kml_tail
 
     route_path, _ = os.path.splitext(sys.argv[1])
-    gen_route_path = route_path + '_gen.kml'
+    gen_route_path = 'gen_' + route_path + '.kml'
     print('Writing result to {}.'.format(gen_route_path))
     with open(gen_route_path, 'w') as route_file:
         route_file.write(kml_string)
