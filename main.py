@@ -11,20 +11,20 @@ kml_tail = '''</Document>\n</kml>'''
 kml_body_template = '''\t<Placemark>
     <name>Line{}</name>
     <description>{}</description>
-    <LineString>
-        <coordinates>{},{} {},{}</coordinates>
-    </LineString>
+    <Point>
+        <coordinates>{},{}</coordinates>
+    </Point>
     </Placemark>\n'''
 
 polylines_template = '{}_polylines.kml'
 eps = 1e-4
 
 # https://en.wikipedia.org/wiki/Decimal_degrees
-# 1e-8 degrees = 1.0247mm
+# 1e-8 degrees = 1.0247cm
 conversion_coef = 1.0247
-quantum = 1e-8
+quantum = 1e-7
 
-route_lines = [[(None, None), (None, None), None]]     # ((x0, y0), (x1, y1), d)
+route_points = []     # ((x, y), d)
 
 
 def dist(p1, p2, m):
@@ -43,18 +43,15 @@ if __name__ == '__main__':
     x_min = sys.float_info.max
     y_max = -sys.float_info.max
     y_min = sys.float_info.max
-    nlines = 0
+    npoints = 0
 
     with open(sys.argv[1], 'r') as route_file:
         start_time = time.time()
-        i = 0
         for line in route_file.readlines():
             if line.startswith('<gx:coord>'):
                 tags = line.replace('<gx:coord>', '').replace('</gx:coord>', '').replace('\n', '').split(' ')
                 x, y = float(tags[0]), float(tags[1])
-                route_lines[i][1] = (x, y)
-                route_lines.append([(x, y), None, -1])
-                i += 1
+                route_points.append([(x, y), -1])
 
                 # find edge route points
                 if x > x_max:
@@ -66,8 +63,7 @@ if __name__ == '__main__':
                 if y < y_min:
                     y_min = deepcopy(y)
         # remove first and last element
-        nlines = deepcopy(i)
-        route_lines = route_lines[1:-1]
+        npoints = len(route_points)
         print('Read route file {0} in {1:.2f}s'.format(sys.argv[1], time.time() - start_time))
 
     # select real roads that are (at least partly) inside edge points and store
@@ -85,6 +81,8 @@ if __name__ == '__main__':
                 coordinates = stripped.split(' ')
                 for point in coordinates:
                     x, y = float(point.split(',')[0]), float(point.split(',')[1])
+                    if x > x_max or x < x_min or y > y_max or y < y_min:
+                        continue
                     selected_roads[i][1] = (x, y)
                     selected_roads.append([(x, y), None])
                     i += 1
@@ -92,28 +90,25 @@ if __name__ == '__main__':
         print('Read polylines file {0} in {1:.2f}s'.format(polylines_path, time.time() - start_time))
 
     # for each route polyline find closest road line
-    i = 0
     start_time = time.time()
-    for route_line in route_lines:
-        mean_point = ((route_line[0][0] + route_line[1][0]) / 2, (route_line[0][1] + route_line[1][1]) / 2)
+    for idx, route_point in enumerate(route_points):
         min_dist = sys.float_info.max
         for road in selected_roads:
-            d = dist(road[0], road[1], mean_point)
+            d = dist(road[0], road[1], route_point[0])
             if d < min_dist:
                 min_dist = d
-        i += 1
         # store calculated error to route data
         m, s = divmod(time.time() - start_time, 60)
         h, m = divmod(m, 60)
-        print('Calculated {0}/{1} route lines\'s errors in {2:0>2}:{3:0>2}:{4:05.2f} -> {5:.4f}mm'
-              .format(i, nlines, int(h), int(m), s, to_milimeters(min_dist)))
-        route_line[2] = to_milimeters(min_dist)
+        print('Calculated {0}/{1} route lines\'s errors in {2:0>2}:{3:0>2}:{4:05.2f} -> {5:.4f}cm'
+              .format(idx, npoints, int(h), int(m), s, to_milimeters(min_dist)))
+        route_point[1] = to_milimeters(min_dist)
 
     # generate new KML where you store coordinates and GPS data errors
     kml_body = ''
     print('Generating new .kml with line coordinates and GPS data errors.')
-    for idx, line in enumerate(route_lines):
-        kml_body += kml_body_template.format(idx, line[2], line[0][0], line[0][1], line[1][0], line[1][1])
+    for idx, point in enumerate(route_points):
+        kml_body += kml_body_template.format(idx, point[1], point[0][0], point[0][1])
     kml_string = kml_head + kml_body + kml_tail
 
     route_path, _ = os.path.splitext(sys.argv[1])
